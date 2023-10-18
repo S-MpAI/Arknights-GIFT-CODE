@@ -178,9 +178,8 @@ while ch != 'N':
         pr = pr + f'╎\n├{"-"*10} Gifs: \n╎'
         if err_ == None:
           if cont['meta']['ok'] == True:
-            UID = UID
+            
             giftName = cont['data']['giftName']
-            NICKNAME = NICKNAME
 
             pr = pr + f'\n╎ Status: {green}SUCCESS{white}'
             pr = pr + f'\n╎ NickName: {green}{NICKNAME}{white}'
