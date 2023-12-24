@@ -32,6 +32,7 @@ def cls():
   except:
     subprocess.call("cls", shell=True)
 
+gift_code = input('Введите подарочный код >>> ')
 
 def debDEF(text, debugVal, py_logger, py_log_num, exc_info=False):
   """
@@ -170,12 +171,12 @@ while ch != 'N':
 
   if err_ == None:
     if err_ != "You've already got the pack, save that for someone else!!!":
-      if input('╎\n├ Activate gift code 2023ARKEN35ANNIV ? (Y/N) >>> ') == 'Y':
+      if input(f'╎\n├ Activate gift code {gift_code} ? (Y/N) >>> ') == 'Y':
 
         try:
           r = requests.post('https://arknights.global/api/gift/exchange',
                             data={
-                                "code": f"2023ARKEN35ANNIV",
+                                "code": gift_code,
                                 "uid": UID
                             }).text.replace(':false', ':False').replace(
                                 ':true', ':True')
