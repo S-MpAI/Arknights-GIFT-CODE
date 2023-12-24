@@ -34,6 +34,16 @@ def cls():
 
 
 def debDEF(text, debugVal, py_logger, py_log_num, exc_info=False):
+  """
+    Отладочная функция для вывода информации в консоль и лог-файл.
+
+    Параметры:
+    - text (строка): Текст для отладочного вывода.
+    - debugVal (булево): Флаг отладочного вывода.
+    - py_logger (Logger): Объект логгера.
+    - py_log_num (целое число): Номер логгирования (1 - info, 2 - warning, 3 - error, 4 - critical).
+    - exc_info (булево): Флаг вывода информации об исключении (по умолчанию False).
+  """
   if debugVal == True:
     print('\r', end='')
     print(f'{yellow}[DEBUG] {blue}{text}{white}')
@@ -51,6 +61,12 @@ starting_script_time2 = starting_script_time.replace('-', '_').replace(
 
 
 def set_logger_settings():
+  """
+    Функция для создания и настройки объекта логгера.
+
+    Возвращаемое значение:
+    - Кортеж, содержащий объект логгера и строку с временем запуска скрипта.
+  """
   py_logger = logging.getLogger(__name__)
   py_logger.setLevel(logging.INFO)
 
