@@ -1,232 +1,119 @@
 import os
-
-do = os.getcwd()
-debugVal = False
-
 import requests
-import ast
-import subprocess
+import json
 import time
 import logging
-from datetime import datetime, timedelta
+from pathlib import Path
+from datetime import datetime
 
-black = "\033[30m"
-red = "\033[31m"
-green = "\033[32m"
-yellow = "\033[33m"
-blue = "\033[34m"
-violet = "\033[35m"
-turquoise = "\033[36m"
-white = "\033[37m"
-st = "\033[37"
+from typing import Tuple, Optional
 
-if str(os.name) == "nt":
-  dir_pref = "\\"
-else:
-  dir_pref = "/"
+COLORS = {
+    "black": "\033[30m",
+    "red": "\033[31m",
+    "green": "\033[32m",
+    "yellow": "\033[33m",
+    "blue": "\033[34m",
+    "violet": "\033[35m",
+    "cyan": "\033[36m",
+    "white": "\033[37m",
+    "reset": "\033[0m",
+}
 
+DEBUG = False
+BASE_DIR = Path.cwd()
+LOG_DIR = BASE_DIR / "logging"
 
 def cls():
-  try:
-    subprocess.call("clear")  # linux/mac
-  except:
-    subprocess.call("cls", shell=True)
+    os.system("cls" if os.name == "nt" else "clear")
 
-gift_code = input('Введите подарочный код >>> ')
+def debug_log(message: str, level: int, logger: logging.Logger):
+    if DEBUG:
+        print(f"{COLORS['yellow']}[DEBUG]{COLORS['blue']} {message}{COLORS['white']}")
+    log_funcs = [logger.debug, logger.info, logger.warning, logger.error, logger.critical]
+    log_funcs[min(level, 4)](message)
 
-def debDEF(text, debugVal, py_logger, py_log_num, exc_info=False):
-  """
-    Отладочная функция для вывода информации в консоль и лог-файл.
+def setup_logger() -> logging.Logger:
+    LOG_DIR.mkdir(exist_ok=True)
+    log_name = datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + ".log"
+    log_path = LOG_DIR / log_name
 
-    Параметры:
-    - text (строка): Текст для отладочного вывода.
-    - debugVal (булево): Флаг отладочного вывода.
-    - py_logger (Logger): Объект логгера.
-    - py_log_num (целое число): Номер логгирования (1 - info, 2 - warning, 3 - error, 4 - critical).
-    - exc_info (булево): Флаг вывода информации об исключении (по умолчанию False).
-  """
-  if debugVal == True:
-    print('\r', end='')
-    print(f'{yellow}[DEBUG] {blue}{text}{white}')
+    logger = logging.getLogger("gift_code_checker")
+    logger.setLevel(logging.INFO)
 
-  if py_log_num == 1: py_logger.info(text)
-  elif py_log_num == 2: py_logger.warning(text)
-  elif py_log_num == 3: py_logger.error(text)
-  elif py_log_num == 4: py_logger.critical(text)
-  else: py_logger.debug(text)
+    handler = logging.FileHandler(log_path)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
 
+    debug_log("Logger initialized.", 1, logger)
+    return logger
 
-starting_script_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-starting_script_time2 = starting_script_time.replace('-', '_').replace(
-    ' ', '_').replace(':', '_')
+def fetch_user_info(uid: int, logger: logging.Logger) -> Tuple[Optional[dict], Optional[str]]:
+    try:
+        resp = requests.get(f"https://arknights.global/api/gift/playerinfo?uid={uid}")
+        data = resp.json()
+        return data, None
+    except requests.exceptions.RequestException as e:
+        debug_log(f"Request failed: {e}", 3, logger)
+        return None, str(e)
+    except json.JSONDecodeError:
+        return None, "Invalid JSON received."
 
+def redeem_gift(uid: int, code: str, logger: logging.Logger) -> Tuple[Optional[dict], Optional[str]]:
+    try:
+        resp = requests.post("https://arknights.global/api/gift/exchange", data={"uid": uid, "code": code})
+        data = resp.json()
+        return data, None
+    except requests.exceptions.RequestException as e:
+        debug_log(f"POST request failed: {e}", 3, logger)
+        return None, str(e)
+    except json.JSONDecodeError:
+        return None, "Invalid JSON received."
 
-def set_logger_settings():
-  """
-    Функция для создания и настройки объекта логгера.
+def main():
+    logger = setup_logger()
+    gift_code = input("Введите подарочный код >>> ").strip()
 
-    Возвращаемое значение:
-    - Кортеж, содержащий объект логгера и строку с временем запуска скрипта.
-  """
-  py_logger = logging.getLogger(__name__)
-  py_logger.setLevel(logging.INFO)
-
-  py_handler = logging.FileHandler(f"{starting_script_time2}.log", mode="w")
-  py_handler.setFormatter(
-      logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-  py_logger.addHandler(py_handler)
-  os.chdir(do)
-  starting_script_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-  debDEF(f"{'='*15}- STARTing script in [{starting_script_time}] -{'='*15}",
-         debugVal, py_logger, 1)
-
-  return py_logger, starting_script_time
-
-
-try:
-  os.mkdir("logging")
-  os.chdir(f'{do + dir_pref + "logging"}')
-  py_logger, starting_script_time = set_logger_settings()
-except FileExistsError:
-  os.chdir(f'{do + dir_pref + "logging"}')
-  py_logger, starting_script_time = set_logger_settings()
-  pass
-except PermissionError:
-  py_logger, starting_script_time = set_logger_settings()
-  pass
-
-ch = 'Y'
-
-while ch != 'N':
-
-  cls()
-
-  debDEF(f'{"-"*11} New session started {"-"*11}', debugVal, py_logger, 1)
-  UID = int(input('Enter UID from the main menu >>> '))
-  debDEF(f"[INPT] ID ({UID}) has been entered.", debugVal, py_logger, 1)
-
-  try:
-    r = requests.get(f'https://arknights.global/api/gift/playerinfo?uid={UID}')
-
-    cont = r.text.replace(':false', ':False').replace(':true', ':True')
-    cont = ast.literal_eval(cont)
-    err_ = None
-
-  except requests.exceptions.ConnectionError as err_code:
-    if "[Errno 11001]" in str(err_code):
-      err_ = 'You are not connected to the Internet'
-    cont = err_code
-  except Exception as err:
-    cont = err
-    err_ = err
-
-  pr = ''
-  pr = pr + f'''┌{"-"*10} Requests \n╎'''
-  if err_ == None:
-    pr = pr + f'\n╎ Status: Requests - {green}OK{white}\n'
-    debDEF(f"[Main] REQUEST Status - OK", debugVal, py_logger, 1)
-  else:
-    pr = pr + f'\n╎ Status: Requests - {red}Error{white}\n'
-    debDEF(f"[Error] REQUEST Status - Error", debugVal, py_logger, 3)
-
-  if err_ == None:
-    v = cont["meta"]["v"]
-    pr = pr + f'╎\n├{"-"*10} Version: \n╎'
-    pr = pr + f'\n╎ Version API: {green}{v}{white}\n'
-    debDEF(f"[Main] REQUEST VersionAPI - {v}", debugVal, py_logger, 1)
-
-  pr = pr + f'╎\n├{"-"*10} Info: \n╎'
-
-  if err_ == None:
-    if cont['meta']['ok'] == True:
-
-      UID = cont['data']['uid']
-      LVL = cont['data']['level']
-      NICKNAME = cont['data']['nickname']
-
-      pr = pr + f'\n╎ NickName: {green}{NICKNAME}{white}'
-      pr = pr + f'\n╎ Level: {green}{LVL}{white}'
-      pr = pr + f'\n╎ UserID: {green}{UID}{white}'
-      debDEF(f"[Main] DATA User information", debugVal, py_logger, 1)
-      debDEF(f"[Data] NickName - {NICKNAME}", debugVal, py_logger, 1)
-      debDEF(f"[Data] Level - {LVL}", debugVal, py_logger, 1)
-      debDEF(f"[Data] UserID - {UID}", debugVal, py_logger, 1)
-
-    else:
-      err_code = cont['meta']['err']['code']
-      msg = cont['meta']['err']['msg']
-      pr = pr + f'\n╎ Code:  {red}{err_code}{white}'
-      pr = pr + f'\n╎ Error: {red}{msg}{white}'
-      debDEF(f"[Main] DATA User information", debugVal, py_logger, 1)
-      debDEF(f"[Error] Code - {err_code}", debugVal, py_logger, 1)
-      debDEF(f"[Error] Error - {msg}", debugVal, py_logger, 1)
-
-  else:
-    pr = pr + f'\n╎ Error: Message - {red}{err_}{white}'
-    debDEF(f"[Error] Error: {err_}", debugVal, py_logger, 3)
-
-  print(pr)
-
-  # ch = input(f'''╎\n└{"-"*10} Continue? (Y/N) >>> ''')
-
-  if err_ == None:
-    if err_ != "You've already got the pack, save that for someone else!!!":
-      if input(f'╎\n├ Activate gift code {gift_code} ? (Y/N) >>> ') == 'Y':
+    while True:
+        cls()
+        debug_log("Новая сессия", 1, logger)
 
         try:
-          r = requests.post('https://arknights.global/api/gift/exchange',
-                            data={
-                                "code": gift_code,
-                                "uid": UID
-                            }).text.replace(':false', ':False').replace(
-                                ':true', ':True')
-          #print(r)
-          cont = ast.literal_eval(r)
-          err_ = None
-        except requests.exceptions.ConnectionError as err_code:
-          if "[Errno 11001]" in str(err_code):
-            err_ = 'You are not connected to the Internet'
-          cont = err_code
-        except Exception as err:
-          cont = err
-          err_ = err
+            uid = int(input("Введите UID >>> "))
+        except ValueError:
+            print(f"{COLORS['red']}Неверный UID!{COLORS['reset']}")
+            continue
 
-        pr = ''
-        pr = pr + f'╎\n├{"-"*10} Gifs: \n╎'
-        if err_ == None:
-          if cont['meta']['ok'] == True:
-            
-            giftName = cont['data']['giftName']
-
-            pr = pr + f'\n╎ Status: {green}SUCCESS{white}'
-            pr = pr + f'\n╎ NickName: {green}{NICKNAME}{white}'
-            pr = pr + f'\n╎ GiftName: {green}{giftName}{white}'
-            pr = pr + f'\n╎ UserID: {green}{UID}{white}'
-            debDEF(f"[Main] GIFT User information", debugVal, py_logger, 1)
-            debDEF(f"[GIFT] NickName - {NICKNAME}", debugVal, py_logger, 1)
-            debDEF(f"[GIFT] Level - {LVL}", debugVal, py_logger, 1)
-            debDEF(f"[GIFT] UserID - {UID}", debugVal, py_logger, 1)
-
-          else:
-            err_code = cont['meta']['err']['code']
-            msg = cont['meta']['err']['msg']
-            pr = pr + f'\n╎ Status: {red}ERROR{white}'
-            pr = pr + f'\n╎ Code:  {red}{err_code}{white}'
-            pr = pr + f'\n╎ Error: {red}{msg}{white}'
-            debDEF(f"[Main] GIFT User information", debugVal, py_logger, 1)
-            debDEF(f"[Error] Code - {err_code}", debugVal, py_logger, 1)
-            debDEF(f"[Error] Error - {msg}", debugVal, py_logger, 1)
+        user_data, error = fetch_user_info(uid, logger)
+        if error:
+            print(f"{COLORS['red']}Ошибка запроса: {error}{COLORS['reset']}")
+        elif user_data and user_data.get("meta", {}).get("ok"):
+            info = user_data["data"]
+            print(f"""
+╔═[ Игрок найден ]
+║ Ник: {COLORS['green']}{info['nickname']}{COLORS['reset']}
+║ Уровень: {COLORS['green']}{info['level']}{COLORS['reset']}
+║ UID: {COLORS['green']}{info['uid']}{COLORS['reset']}
+╚══════════════════
+""")
+            if input("Активировать подарок? (Y/N) >>> ").strip().upper() == 'Y':
+                gift_result, gift_error = redeem_gift(uid, gift_code, logger)
+                if gift_error:
+                    print(f"{COLORS['red']}Ошибка при активации: {gift_error}{COLORS['reset']}")
+                elif gift_result and gift_result.get("meta", {}).get("ok"):
+                    gift = gift_result["data"]
+                    print(f"{COLORS['green']}Успешно! Получен подарок: {gift['giftName']}{COLORS['reset']}")
+                else:
+                    msg = gift_result["meta"]["err"]["msg"]
+                    print(f"{COLORS['red']}Ошибка: {msg}{COLORS['reset']}")
         else:
-          pr = pr + f'\n╎ Error: Message - {red}{err_}{white}'
-          debDEF(f"[Error] Error: {err_}", debugVal, py_logger, 3)
-        print(pr)
-  else:
-    debDEF(f'The user survey was not displayed due to an error.', debugVal,
-           py_logger, 1)
+            msg = user_data["meta"]["err"]["msg"] if user_data else "Неизвестная ошибка"
+            print(f"{COLORS['red']}Ошибка: {msg}{COLORS['reset']}")
 
-  debDEF(f'{"-"*11} The session was closed {"-"*11}', debugVal, py_logger, 1)
-  ch = input(f'╎\n├{"-"*10} Continue? \n╎ (Y/N) >>> ')
+        if input("Продолжить? (Y/N) >>> ").strip().upper() != "Y":
+            break
 
-debDEF(
-    f"""The script has been completed in [{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}]""",
-    debugVal, py_logger, 1)
+    debug_log("Скрипт завершён.", 1, logger)
+
+if __name__ == "__main__":
+    main()
